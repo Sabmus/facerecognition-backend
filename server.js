@@ -1,7 +1,13 @@
 const express = require("express");
 const cors = require('cors')
 const bcrypt = require('bcryptjs');
-const knex = require('knex')
+const knex = require('knex');
+
+const signin = require("./controllers/signin");
+const register = require("./controllers/register");
+const image = require("./controllers/image");
+const faceRecognition = require("./controllers/faceRecognition");
+
 
 // Database
 const db = knex({
@@ -18,10 +24,11 @@ const db = knex({
 
 // Constants
 const PORT = 8080;
-const HOST = '0.0.0.0';
+// const HOST = '0.0.0.0';
 const saltRounds = 10;
 
 const app = express();
+
 // Middleware
 app.use(express.urlencoded({extended: false}));
 app.use(express.json());
@@ -29,73 +36,27 @@ app.use(cors())
 
 
 app.get("/", (req, res) => {
-    res.json(db.users);
+    res.json({"message": "Hello World!"});
 });
 
 // Log a User In
-app.post("/signin", (req, res) => {
-    db('users').where({
-        email: req.body.email  // unique in db
-    })
-    .then(data => {
-        const userData = {
-            id: data[0].id, 
-            username: data[0].username,
-            email: data[0].email,
-            entries: data[0].entries,
-            joined: data[0].joined
-        }
-        bcrypt.compare(req.body.password, data[0].hashedpassword, (err, result) => {
-            result ? res.json(userData) : res.status(400).json({"message": "Invalid credentials."})
-        });
-    })
-    .catch(error => {
-        res.json({"message": "Invalid credentials."});
-    });
-});
+app.post("/signin", (req, res) => { signin.handleSignin(req, res, db, bcrypt) });
 
 // Register a User
-app.post("/register", (req, res) => {
-    const { username, email, password, passwordConfirm } = req.body;
-
-    if (password !== passwordConfirm) {
-        res.json({"message": "Password must match."});
-    } else {
-        bcrypt.hash(password, saltRounds, (err, hash) => {
-            db('users').insert([
-                {
-                    username: username,
-                    email: email,
-                    hashedpassword: hash,
-                    joined: new Date()
-                }
-            ], ["id", "username", "email", "entries", "joined"])
-            .then(data => res.json(data[0]))
-            .catch(error => res.status(400).json({"message": "Unable to register."}));
-        });
-    }
-
-});
+app.post("/register", (req, res) => { register.handleRegister(req, res, db, bcrypt, saltRounds) });
 
 // Get user profile TBD
 app.get("/profile/:id", (req, res) => {
-    const { id } = req.params;
-    const user = db.users.filter(user => user.id === Number(id));
-    user.length > 0 ? res.json(user[0]) : res.status(404).json({"message": "No such user."});
+    res.json({"message": "TBD"});
 });
 
 // Process an Image
-app.put("/image", (req, res) => {
-    db('users').where("id", req.body.id)
-    .increment('entries', 1)
-    .returning('entries')
-    .then(entries => res.json(entries[0].entries))
-    .catch(error => {
-        res.status(404).json({"message": "No such user."});
-    });
-});
+app.put("/image", (req, res) => { image.handleImage(req, res, db) });
+
+// recognize faces
+app.post("/face-recognition", (req, res) => { faceRecognition.handlFaceRecognition(req, res) });
 
 
-app.listen(PORT, HOST, () => {
-    console.log(`Running on http://${HOST}:${PORT}`);
+app.listen(PORT, () => {
+    console.log(`Running on port: ${PORT}`);
 });
